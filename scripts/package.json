@@ -1,0 +1,29 @@
+{
+  "name": "@workspace/scripts",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "hello": "tsx ./src/hello.ts",
+    "import:cms-2026-rates": "tsx ./src/import-cms-2026-rate-book.ts",
+    "restore:cms-2026-rate-book-benchmarks": "tsx ./src/restore-cms-2026-rate-book-benchmarks.ts",
+    "import:cms-2026-national-coverage": "tsx ./src/import-cms-2026-national-coverage.ts",
+    "import:cms-2026-plan-costs": "tsx ./src/import-cms-2026-plan-costs.ts",
+    "import:cms-2026-look-alikes": "tsx ./src/import-cms-2026-look-alikes.ts",
+    "verify:cms-2026-rate-book-coverage": "tsx ./src/verify-cms-2026-rate-book-coverage.ts",
+    "test:cms-2026-rate-book": "tsx --test ./src/import-cms-2026-rate-book.test.ts ./src/verify-cms-2026-rate-book-coverage.test.ts ../artifacts/ma-plan-tracker/src/lib/csv.test.ts",
+    "test:api-market-share": "tsx --test ../artifacts/api-server/src/routes/market-share.test.ts",
+    "test:cms-2026-look-alikes": "tsx --test ./src/import-cms-2026-look-alikes.test.ts",
+    "test:cms-2026-plan-costs": "tsx --test ./src/import-cms-2026-plan-costs.test.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@workspace/cms-rate-reference": "workspace:*",
+    "@workspace/db": "workspace:*",
+    "drizzle-orm": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "tsx": "catalog:"
+  }
+}

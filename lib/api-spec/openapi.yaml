@@ -1,0 +1,1284 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.1.0
+  description: Medicare Advantage Plan Tracker API
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: plans
+    description: Medicare Advantage plan operations
+  - name: counties
+    description: County operations
+  - name: states
+    description: State operations
+  - name: benefits
+    description: Benefit operations
+  - name: enrollments
+    description: Enrollment operations
+  - name: summary
+    description: Summary / dashboard operations
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      description: Returns server health status
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+
+  /states:
+    get:
+      operationId: listStates
+      tags: [states]
+      summary: List all states with MA plan coverage
+      responses:
+        "200":
+          description: List of states
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/State"
+
+  /counties:
+    get:
+      operationId: listCounties
+      tags: [counties]
+      summary: List counties, optionally filtered by state
+      parameters:
+        - name: state_code
+          in: query
+          schema:
+            type: string
+          description: Two-letter state abbreviation
+      responses:
+        "200":
+          description: List of counties
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/County"
+
+  /counties/{fips}/plans:
+    get:
+      operationId: getCountyPlans
+      tags: [counties]
+      summary: Get all MA plans available in a specific county
+      parameters:
+        - name: fips
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 5-digit county FIPS code
+        - name: plan_type
+          in: query
+          schema:
+            type: string
+            enum: [d_snp, i_snp, c_snp, regular]
+          description: Filter by plan type
+        - name: year
+          in: query
+          schema:
+            type: number
+      responses:
+        "200":
+          description: Plans in this county with enrollment data
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CountyPlan"
+        "404":
+          description: County not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /plans:
+    get:
+      operationId: listPlans
+      tags: [plans]
+      summary: List Medicare Advantage plans with optional filters
+      parameters:
+        - name: state_code
+          in: query
+          schema:
+            type: string
+          description: Two-letter state abbreviation
+        - name: county_fips
+          in: query
+          schema:
+            type: string
+          description: Filter to plans available in this county FIPS
+        - name: plan_type
+          in: query
+          schema:
+            type: string
+            enum: [d_snp, i_snp, c_snp, regular]
+          description: Filter by plan type
+        - name: sponsor
+          in: query
+          schema:
+            type: string
+          description: Search by sponsor/organization name
+        - name: year
+          in: query
+          schema:
+            type: number
+        - name: limit
+          in: query
+          schema:
+            type: number
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: number
+            default: 0
+      responses:
+        "200":
+          description: Paginated list of plans
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlanListResponse"
+    post:
+      operationId: createPlan
+      tags: [plans]
+      summary: Create a new MA plan record
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PlanInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Plan"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /plans/{id}:
+    get:
+      operationId: getPlan
+      tags: [plans]
+      summary: Get a single MA plan by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: number
+      responses:
+        "200":
+          description: Plan detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlanDetail"
+        "404":
+          description: Plan not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      operationId: updatePlan
+      tags: [plans]
+      summary: Update an MA plan record
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: number
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PlanUpdate"
+      responses:
+        "200":
+          description: Updated plan
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Plan"
+        "404":
+          description: Plan not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deletePlan
+      tags: [plans]
+      summary: Delete an MA plan record
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: number
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Plan not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /plans/{id}/benefits:
+    get:
+      operationId: getPlanBenefits
+      tags: [benefits]
+      summary: List attributed benefits for a plan
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: number
+      responses:
+        "200":
+          description: Benefits list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Benefit"
+        "404":
+          description: Plan not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      operationId: addPlanBenefit
+      tags: [benefits]
+      summary: Add a benefit to a plan
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: number
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BenefitInput"
+      responses:
+        "201":
+          description: Benefit added
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Benefit"
+        "404":
+          description: Plan not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /plans/{id}/enrollments:
+    get:
+      operationId: getPlanEnrollments
+      tags: [enrollments]
+      summary: Get county-level enrollment data for a plan
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: number
+        - name: year
+          in: query
+          schema:
+            type: number
+      responses:
+        "200":
+          description: Enrollment records by county
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Enrollment"
+        "404":
+          description: Plan not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /enrollments:
+    get:
+      operationId: listEnrollments
+      tags: [enrollments]
+      summary: List enrollment records across plans and counties
+      parameters:
+        - name: state_code
+          in: query
+          schema:
+            type: string
+        - name: county_fips
+          in: query
+          schema:
+            type: string
+        - name: plan_type
+          in: query
+          schema:
+            type: string
+            enum: [d_snp, i_snp, c_snp, regular]
+        - name: year
+          in: query
+          schema:
+            type: number
+        - name: min_beneficiaries
+          in: query
+          schema:
+            type: number
+        - name: limit
+          in: query
+          schema:
+            type: number
+            default: 100
+        - name: offset
+          in: query
+          schema:
+            type: number
+            default: 0
+      responses:
+        "200":
+          description: Enrollment records
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Enrollment"
+    post:
+      operationId: createEnrollment
+      tags: [enrollments]
+      summary: Create an enrollment record
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EnrollmentInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Enrollment"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /summary:
+    get:
+      operationId: getSummary
+      tags: [summary]
+      summary: Dashboard summary statistics
+      parameters:
+        - name: state_code
+          in: query
+          schema:
+            type: string
+        - name: year
+          in: query
+          schema:
+            type: number
+      responses:
+        "200":
+          description: Aggregate dashboard stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Summary"
+
+  /counties/{fips}/market-share:
+    get:
+      operationId: getCountyMarketShare
+      tags: [counties]
+      summary: Market share breakdown for a county — percent aligned to each plan
+      parameters:
+        - name: fips
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: year
+          in: query
+          schema:
+            type: number
+      responses:
+        "200":
+          description: County market share with HHI concentration metric
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CountyMarketShare"
+        "404":
+          description: County not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /summary/county-concentration:
+    get:
+      operationId: getCountyConcentration
+      tags: [summary]
+      summary: All counties ranked by market concentration (HHI), with duopoly flags
+      parameters:
+        - name: state_code
+          in: query
+          schema:
+            type: string
+        - name: year
+          in: query
+          schema:
+            type: number
+        - name: min_beneficiaries
+          in: query
+          schema:
+            type: number
+          description: Minimum total county beneficiaries to include
+        - name: limit
+          in: query
+          schema:
+            type: number
+            default: 100
+      responses:
+        "200":
+          description: Counties ranked by market concentration
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CountyConcentration"
+
+  /summary/top-plans:
+    get:
+      operationId: getTopPlans
+      tags: [summary]
+      summary: Top MA plans by total beneficiaries
+      parameters:
+        - name: state_code
+          in: query
+          schema:
+            type: string
+        - name: plan_type
+          in: query
+          schema:
+            type: string
+            enum: [d_snp, i_snp, c_snp, regular]
+        - name: year
+          in: query
+          schema:
+            type: number
+        - name: limit
+          in: query
+          schema:
+            type: number
+            default: 10
+      responses:
+        "200":
+          description: Top plans by enrollment
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TopPlan"
+
+components:
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required:
+        - status
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
+
+    State:
+      type: object
+      properties:
+        state_code:
+          type: string
+        state_name:
+          type: string
+        plan_count:
+          type: number
+        total_beneficiaries:
+          type: number
+      required:
+        - state_code
+        - state_name
+        - plan_count
+        - total_beneficiaries
+
+    County:
+      type: object
+      properties:
+        fips:
+          type: string
+        county_name:
+          type: string
+        state_code:
+          type: string
+        state_name:
+          type: string
+      required:
+        - fips
+        - county_name
+        - state_code
+        - state_name
+
+    Plan:
+      type: object
+      properties:
+        id:
+          type: number
+        contract_id:
+          type: string
+          description: CMS contract ID (H-number, e.g. H1234)
+        plan_id:
+          type: string
+          description: Plan benefit package ID (e.g. 001)
+        plan_name:
+          type: string
+        sponsor_name:
+          type: string
+        plan_type:
+          type: string
+          enum: [d_snp, i_snp, c_snp, regular]
+        monthly_premium:
+          type: ["number", "null"]
+          description: CMS monthly A/B plan premium when one value applies across the service area
+        monthly_premium_min:
+          type: ["number", "null"]
+          description: Lowest CMS monthly A/B plan premium across county segments
+        monthly_premium_max:
+          type: ["number", "null"]
+          description: Highest CMS monthly A/B plan premium across county segments
+        drug_premium:
+          type: ["number", "null"]
+          description: Part D drug premium in dollars
+        moop:
+          type: ["number", "null"]
+          description: CMS in-network maximum out-of-pocket when one value applies across the service area
+        moop_min:
+          type: ["number", "null"]
+          description: Lowest CMS in-network maximum out-of-pocket across county segments
+        moop_max:
+          type: ["number", "null"]
+          description: Highest CMS in-network maximum out-of-pocket across county segments
+        moop_type:
+          type: ["string", "null"]
+          description: CMS PBP in-network MOOP structure code when uniform across county segments
+        costs_vary_by_county:
+          type: boolean
+          description: Whether CMS publishes different premium or MOOP values by county segment
+        premium_varies_by_county:
+          type: boolean
+          description: Whether the A/B premium differs across county segments or is unpublished in only some segments
+        premium_has_unpublished_counties:
+          type: boolean
+          description: Whether CMS leaves the A/B premium unpublished in at least one county segment
+        moop_varies_by_county:
+          type: boolean
+          description: Whether the in-network MOOP differs across county segments or is unpublished in only some segments
+        moop_has_unpublished_counties:
+          type: boolean
+          description: Whether CMS leaves the in-network MOOP unpublished in at least one county segment
+        cost_source:
+          type: ["string", "null"]
+          description: Authoritative source used for premium and MOOP values
+        cost_source_url:
+          type: ["string", "null"]
+          description: CMS source download URL
+        cost_imported_at:
+          type: ["string", "null"]
+          format: date-time
+        star_rating:
+          type: ["number", "null"]
+          description: CMS overall star rating (1.0-5.0)
+        star_rating_part_c:
+          type: ["number", "null"]
+          description: CMS Part C (medical) star rating
+        star_rating_part_d:
+          type: ["number", "null"]
+          description: CMS Part D (drug) star rating
+        d_snp_integration:
+          type: ["string", "null"]
+          enum: [fide, hide, coordinated, null]
+          description: D-SNP integration level — fide (fully integrated), hide (highly integrated), coordinated (coordination-only)
+        frailty_eligible:
+          type: boolean
+          description: FIDE SNP approved for CMS frailty payment adjustment
+        is_look_alike:
+          type: boolean
+          description: CMS D-SNP look-alike determination for a non-SNP plan under the 70% threshold and small/new-plan exception
+        dual_eligible_enrollment:
+          type: ["number", "null"]
+          description: CMS-reported dual-eligible enrollment used for the look-alike assessment; null when CMS suppresses or does not publish it
+        look_alike_total_enrollment:
+          type: ["number", "null"]
+          description: CMS January enrollment denominator used for the look-alike assessment
+        dual_eligible_pct:
+          type: ["number", "null"]
+          description: CMS-reported or calculated dual-eligible enrollment percentage; null when unavailable or suppressed
+        dual_eligible_data_status:
+          type: string
+          enum: [available, suppressed, unknown]
+          description: Whether the CMS look-alike input is available, suppressed, or absent for this plan
+        dual_eligible_source_url:
+          type: ["string", "null"]
+          description: CMS source used for the dual-eligible enrollment assessment
+        parent_organization:
+          type: ["string", "null"]
+          description: Parent company (e.g. UnitedHealth Group, Humana Inc.)
+        contract_effective_year:
+          type: ["number", "null"]
+          description: Year the contract first became effective with CMS
+        offers_part_d:
+          type: boolean
+          description: Whether the plan offers Part D drug coverage
+        year:
+          type: number
+        created_at:
+          type: string
+          format: date-time
+      required:
+        - id
+        - contract_id
+        - plan_id
+        - plan_name
+        - sponsor_name
+        - plan_type
+        - costs_vary_by_county
+        - premium_varies_by_county
+        - premium_has_unpublished_counties
+        - moop_varies_by_county
+        - moop_has_unpublished_counties
+        - frailty_eligible
+        - is_look_alike
+        - dual_eligible_data_status
+        - year
+        - created_at
+
+    PlanDetail:
+      allOf:
+        - $ref: "#/components/schemas/Plan"
+        - type: object
+          properties:
+            benefits:
+              type: array
+              items:
+                $ref: "#/components/schemas/Benefit"
+            total_beneficiaries:
+              type: number
+            county_count:
+              type: number
+          required:
+            - benefits
+            - total_beneficiaries
+            - county_count
+
+    PlanListResponse:
+      type: object
+      properties:
+        plans:
+          type: array
+          items:
+            $ref: "#/components/schemas/Plan"
+        total:
+          type: number
+        limit:
+          type: number
+        offset:
+          type: number
+      required:
+        - plans
+        - total
+        - limit
+        - offset
+
+    PlanInput:
+      type: object
+      properties:
+        contract_id:
+          type: string
+        plan_id:
+          type: string
+        plan_name:
+          type: string
+        sponsor_name:
+          type: string
+        plan_type:
+          type: string
+          enum: [d_snp, i_snp, c_snp, regular]
+        monthly_premium:
+          type: ["number", "null"]
+        drug_premium:
+          type: ["number", "null"]
+        moop:
+          type: ["number", "null"]
+        star_rating:
+          type: ["number", "null"]
+        year:
+          type: number
+      required:
+        - contract_id
+        - plan_id
+        - plan_name
+        - sponsor_name
+        - plan_type
+        - year
+
+    PlanUpdate:
+      type: object
+      properties:
+        plan_name:
+          type: string
+        sponsor_name:
+          type: string
+        plan_type:
+          type: string
+          enum: [d_snp, i_snp, c_snp, regular]
+        monthly_premium:
+          type: ["number", "null"]
+        drug_premium:
+          type: ["number", "null"]
+        moop:
+          type: ["number", "null"]
+        star_rating:
+          type: ["number", "null"]
+
+    Benefit:
+      type: object
+      properties:
+        id:
+          type: number
+        plan_id:
+          type: number
+        benefit_name:
+          type: string
+        benefit_category:
+          type: string
+          description: Category (dental, vision, hearing, otc, transportation, fitness, meals, etc.)
+        benefit_value:
+          type: ["string", "null"]
+          description: Monetary value or description (e.g. "$1,500/year", "Included", "Not covered")
+        is_attributed:
+          type: boolean
+          description: Whether this is an attributed supplemental benefit
+      required:
+        - id
+        - plan_id
+        - benefit_name
+        - benefit_category
+        - is_attributed
+
+    BenefitInput:
+      type: object
+      properties:
+        benefit_name:
+          type: string
+        benefit_category:
+          type: string
+        benefit_value:
+          type: ["string", "null"]
+        is_attributed:
+          type: boolean
+      required:
+        - benefit_name
+        - benefit_category
+        - is_attributed
+
+    Enrollment:
+      type: object
+      properties:
+        id:
+          type: number
+        plan_id:
+          type: number
+        plan_name:
+          type: string
+        contract_id:
+          type: string
+        plan_type:
+          type: string
+          enum: [d_snp, i_snp, c_snp, regular]
+        sponsor_name:
+          type: string
+        county_fips:
+          type: string
+        county_name:
+          type: string
+        state_code:
+          type: string
+        beneficiary_count:
+          type: number
+        monthly_premium:
+          type: ["number", "null"]
+          description: CMS monthly A/B plan premium for this county
+        moop:
+          type: ["number", "null"]
+          description: CMS in-network maximum out-of-pocket for this county
+        cost_source:
+          type: ["string", "null"]
+        year:
+          type: number
+      required:
+        - id
+        - plan_id
+        - plan_name
+        - contract_id
+        - plan_type
+        - sponsor_name
+        - county_fips
+        - county_name
+        - state_code
+        - beneficiary_count
+        - year
+
+    EnrollmentInput:
+      type: object
+      properties:
+        plan_id:
+          type: number
+        county_fips:
+          type: string
+        beneficiary_count:
+          type: number
+        year:
+          type: number
+      required:
+        - plan_id
+        - county_fips
+        - beneficiary_count
+        - year
+
+    CountyPlan:
+      type: object
+      properties:
+        plan_id:
+          type: number
+        contract_id:
+          type: string
+        plan_name:
+          type: string
+        sponsor_name:
+          type: string
+        plan_type:
+          type: string
+          enum: [d_snp, i_snp, c_snp, regular]
+        monthly_premium:
+          type: ["number", "null"]
+        drug_premium:
+          type: ["number", "null"]
+        moop:
+          type: ["number", "null"]
+        cost_source:
+          type: ["string", "null"]
+        star_rating:
+          type: ["number", "null"]
+        star_rating_part_c:
+          type: ["number", "null"]
+        star_rating_part_d:
+          type: ["number", "null"]
+        d_snp_integration:
+          type: ["string", "null"]
+          enum: [fide, hide, coordinated, null]
+        frailty_eligible:
+          type: boolean
+        is_look_alike:
+          type: boolean
+        dual_eligible_enrollment:
+          type: ["number", "null"]
+        look_alike_total_enrollment:
+          type: ["number", "null"]
+        dual_eligible_pct:
+          type: ["number", "null"]
+        dual_eligible_data_status:
+          type: string
+          enum: [available, suppressed, unknown]
+        dual_eligible_source_url:
+          type: ["string", "null"]
+        parent_organization:
+          type: ["string", "null"]
+        contract_effective_year:
+          type: ["number", "null"]
+        beneficiary_count:
+          type: number
+        year:
+          type: number
+      required:
+        - plan_id
+        - contract_id
+        - plan_name
+        - sponsor_name
+        - plan_type
+        - frailty_eligible
+        - is_look_alike
+        - dual_eligible_data_status
+        - beneficiary_count
+        - year
+
+    Summary:
+      type: object
+      properties:
+        total_plans:
+          type: number
+        total_beneficiaries:
+          type: number
+        total_counties:
+          type: number
+        total_sponsors:
+          type: number
+        by_plan_type:
+          type: array
+          items:
+            $ref: "#/components/schemas/PlanTypeBreakdown"
+        avg_premium:
+          type: ["number", "null"]
+        avg_moop:
+          type: ["number", "null"]
+        year:
+          type: number
+      required:
+        - total_plans
+        - total_beneficiaries
+        - total_counties
+        - total_sponsors
+        - by_plan_type
+        - year
+
+    PlanTypeBreakdown:
+      type: object
+      properties:
+        plan_type:
+          type: string
+          enum: [d_snp, i_snp, c_snp, regular]
+        plan_count:
+          type: number
+        beneficiary_count:
+          type: number
+        pct_of_total:
+          type: number
+      required:
+        - plan_type
+        - plan_count
+        - beneficiary_count
+        - pct_of_total
+
+    CountyPlanShare:
+      type: object
+      properties:
+        plan_id:
+          type: number
+        contract_id:
+          type: string
+        plan_name:
+          type: string
+        sponsor_name:
+          type: string
+        plan_type:
+          type: string
+          enum: [d_snp, i_snp, c_snp, regular]
+        monthly_premium:
+          type: ["number", "null"]
+        moop:
+          type: ["number", "null"]
+        cost_source:
+          type: ["string", "null"]
+        star_rating:
+          type: ["number", "null"]
+        d_snp_integration:
+          type: ["string", "null"]
+          enum: [fide, hide, coordinated, null]
+        frailty_eligible:
+          type: boolean
+        is_look_alike:
+          type: boolean
+        dual_eligible_enrollment:
+          type: ["number", "null"]
+        look_alike_total_enrollment:
+          type: ["number", "null"]
+        dual_eligible_pct:
+          type: ["number", "null"]
+        dual_eligible_data_status:
+          type: string
+          enum: [available, suppressed, unknown]
+        dual_eligible_source_url:
+          type: ["string", "null"]
+        parent_organization:
+          type: ["string", "null"]
+        beneficiary_count:
+          type: number
+        market_share_pct:
+          type: number
+          description: Percentage of total county beneficiaries aligned to this plan
+        year:
+          type: number
+      required:
+        - plan_id
+        - contract_id
+        - plan_name
+        - sponsor_name
+        - plan_type
+        - frailty_eligible
+        - is_look_alike
+        - dual_eligible_data_status
+        - beneficiary_count
+        - market_share_pct
+        - year
+
+    CountyMarketShare:
+      type: object
+      properties:
+        fips:
+          type: string
+        county_name:
+          type: string
+        state_code:
+          type: string
+        state_name:
+          type: string
+        total_beneficiaries:
+          type: number
+        plan_count:
+          type: number
+        hhi:
+          type: number
+          description: Herfindahl-Hirschman Index (0-10000). >2500 = highly concentrated
+        top2_share_pct:
+          type: number
+          description: Combined market share of the top 2 plans (%)
+        top1_share_pct:
+          type: number
+          description: Market share of the top plan (%)
+        is_monopoly:
+          type: boolean
+          description: Top plan has >80% market share
+        is_duopoly:
+          type: boolean
+          description: Top 2 plans together have >70% market share (but not monopoly)
+        benchmark_unavailable_reason:
+          type: ["string", "null"]
+          description: Documented reason no CMS benchmark exists for this county and year
+        rate_benchmark:
+          oneOf:
+            - $ref: "#/components/schemas/CountyRateBenchmark"
+            - type: "null"
+        year:
+          type: number
+        plans:
+          type: array
+          items:
+            $ref: "#/components/schemas/CountyPlanShare"
+      required:
+        - fips
+        - county_name
+        - state_code
+        - state_name
+        - total_beneficiaries
+        - plan_count
+        - hhi
+        - top2_share_pct
+        - top1_share_pct
+        - is_monopoly
+        - is_duopoly
+        - benchmark_unavailable_reason
+        - rate_benchmark
+        - year
+        - plans
+
+    CountyConcentration:
+      type: object
+      properties:
+        fips:
+          type: string
+        county_name:
+          type: string
+        state_code:
+          type: string
+        state_name:
+          type: string
+        total_beneficiaries:
+          type: number
+        plan_count:
+          type: number
+        d_snp_plans:
+          type: number
+        fide_plans:
+          type: number
+        hide_plans:
+          type: number
+        coordinated_plans:
+          type: number
+        hhi:
+          type: number
+        top1_plan_name:
+          type: string
+        top1_sponsor_name:
+          type: string
+        top1_plan_type:
+          type: string
+          enum: [d_snp, i_snp, c_snp, regular]
+        top1_share_pct:
+          type: number
+        top2_plan_name:
+          type: ["string", "null"]
+        top2_sponsor_name:
+          type: ["string", "null"]
+        top2_share_pct:
+          type: ["number", "null"]
+        top2_combined_pct:
+          type: number
+        is_monopoly:
+          type: boolean
+        is_duopoly:
+          type: boolean
+        rate_benchmark:
+          oneOf:
+            - $ref: "#/components/schemas/CountyRateBenchmark"
+            - type: "null"
+        year:
+          type: number
+      required:
+        - fips
+        - county_name
+        - state_code
+        - state_name
+        - total_beneficiaries
+        - plan_count
+        - d_snp_plans
+        - fide_plans
+        - hide_plans
+        - coordinated_plans
+        - hhi
+        - top1_plan_name
+        - top1_sponsor_name
+        - top1_plan_type
+        - top1_share_pct
+        - top2_combined_pct
+        - is_monopoly
+        - is_duopoly
+        - rate_benchmark
+        - year
+
+    CountyRateBenchmark:
+      type: object
+      description: Monthly CMS Medicare Advantage county capitation benchmarks from the CMS MA Rate Book.
+      required:
+        - year
+        - cms_county_code
+        - rate_5_star
+        - rate_3_5_star
+        - rate_0_star
+        - esrd_rate
+      properties:
+        year:
+          type: number
+          description: CMS rate-book year
+        cms_county_code:
+          type: string
+          description: CMS county rate code, which is distinct from a county FIPS code
+        rate_5_star:
+          type: number
+          description: Monthly Parts A and B benchmark for 5% quality bonus plans
+        rate_3_5_star:
+          type: number
+          description: Monthly Parts A and B benchmark for 3.5% quality bonus plans
+        rate_0_star:
+          type: number
+          description: Monthly Parts A and B benchmark without a quality bonus
+        esrd_rate:
+          type: number
+          description: Monthly ESRD dialysis benchmark after the CMS user-fee deduction
+
+    TopPlan:
+      type: object
+      properties:
+        id:
+          type: number
+        contract_id:
+          type: string
+        plan_name:
+          type: string
+        sponsor_name:
+          type: string
+        plan_type:
+          type: string
+          enum: [d_snp, i_snp, c_snp, regular]
+        monthly_premium:
+          type: ["number", "null"]
+        star_rating:
+          type: ["number", "null"]
+        total_beneficiaries:
+          type: number
+        county_count:
+          type: number
+        year:
+          type: number
+      required:
+        - id
+        - contract_id
+        - plan_name
+        - sponsor_name
+        - plan_type
+        - total_beneficiaries
+        - county_count
+        - year

@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "Medicare Advantage Plan Tracker"
+description = "A full-stack web app for tracking Medicare Advantage plans by county. Shows beneficiary counts per health plan, plan types (D-SNP, I-SNP, C-SNP, regular/standard), attributed benefits, and associated premiums. Supports filtering by state, county, plan type, and sponsor. Designed for health plan analysts and Medicare compliance teams."
+version = "1.0.0"
+id = "artifacts/ma-plan-tracker"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 23126
+
+[services.development]
+run = "pnpm --filter @workspace/ma-plan-tracker run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/ma-plan-tracker", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/ma-plan-tracker/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "23126"
+BASE_PATH = "/"
